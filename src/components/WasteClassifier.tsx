@@ -4,6 +4,7 @@ import { Camera, Upload, RefreshCcw, Loader2, CheckCircle2, Trash2, MapPin } fro
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import MainLayout from '@/layout/MainLayout';
+import CameraFeed from './CameraFeed';
 
 interface ClassificationResult {
   category: string;
@@ -54,6 +55,7 @@ const WasteClassifier: React.FC = () => {
   const [image, setImage] = useState<string | null>(null);
   const [isClassifying, setIsClassifying] = useState<boolean>(false);
   const [result, setResult] = useState<ClassificationResult | null>(null);
+  const [cameraActive, setCameraActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -87,20 +89,19 @@ const WasteClassifier: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleCameraCapture = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
-      }
-      stream.getTracks().forEach(track => track.stop());
-    } catch (error) {
-      toast({
-        title: "Camera access denied",
-        description: "Please allow camera access or upload an image instead",
-        variant: "destructive"
-      });
-    }
+  const handleCameraCapture = () => {
+    setCameraActive(true);
+  };
+
+  const handleCameraImageCapture = (imageData: string) => {
+    setImage(imageData);
+    setResult(null);
+    setCameraActive(false);
+    
+    toast({
+      title: "Image captured",
+      description: "Your image is ready to be classified",
+    });
   };
 
   const classifyImage = async () => {
@@ -158,6 +159,15 @@ const WasteClassifier: React.FC = () => {
 
   return (
     <MainLayout>
+      <AnimatePresence>
+        {cameraActive && (
+          <CameraFeed 
+            onCapture={handleCameraImageCapture} 
+            onClose={() => setCameraActive(false)} 
+          />
+        )}
+      </AnimatePresence>
+      
       <motion.div 
         className="max-w-2xl mx-auto p-6"
         initial="hidden"
@@ -166,7 +176,7 @@ const WasteClassifier: React.FC = () => {
       >
         <motion.div className="mb-8 text-center" variants={itemVariants}>
           <h2 className="text-2xl md:text-3xl font-bold mb-4">Waste Classification</h2>
-          <p className="text-muted-foreground">Upload or take a photo of your waste item to identify its type and get recycling guidance</p>
+          <p className="text-muted-foreground">Use your camera in real-time or upload a photo of your waste item to identify its type and get recycling guidance</p>
         </motion.div>
         
         <motion.div 
