@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Upload, RefreshCcw, Loader2, CheckCircle2, Trash2 } from 'lucide-react';
+import { Camera, Upload, RefreshCcw, Loader2, CheckCircle2, Trash2, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ClassificationResult {
@@ -267,7 +267,7 @@ const WasteClassifier: React.FC = () => {
                       <button
                         className="mt-6 flex items-center justify-center gap-2 px-4 py-2 bg-secondary rounded-lg text-secondary-foreground hover:bg-secondary/90 transition-colors text-sm"
                       >
-                        <Map className="h-4 w-4" />
+                        <MapPin className="h-4 w-4" />
                         <span>Find Recycling Centers</span>
                       </button>
                     </div>
