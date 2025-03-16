@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import WasteClassifier from "./components/WasteClassifier";
 import EnergyTracker from "./components/EnergyTracker";
 import RecyclingMap from "./components/RecyclingMap";
+import About from "./pages/About";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/waste-classifier" element={<WasteClassifier />} />
           <Route path="/energy-tracker" element={<EnergyTracker />} />
           <Route path="/recycling-map" element={<RecyclingMap />} />
+          <Route path="/about" element={<About />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
