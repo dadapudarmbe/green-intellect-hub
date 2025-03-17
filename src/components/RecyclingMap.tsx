@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
@@ -32,7 +31,9 @@ const RecyclingMap: React.FC = () => {
   // Auto-search if location and waste type are provided via state
   useEffect(() => {
     if (state?.searchLocation) {
-      handleSearch(new Event('submit') as React.FormEvent);
+      handleSearch({
+        preventDefault: () => {},
+      } as React.FormEvent);
     }
   }, [state?.searchLocation]);
 
