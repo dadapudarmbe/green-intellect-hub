@@ -13,9 +13,9 @@ const Navbar = () => {
 
   const navLinks = [
     { name: 'Home', path: '/', icon: <Leaf className="h-4 w-4 mr-2" /> },
-    { name: 'Classify', path: '/classify', icon: <Camera className="h-4 w-4 mr-2" /> },
-    { name: 'Energy', path: '/energy', icon: <BarChart3 className="h-4 w-4 mr-2" /> },
-    { name: 'Recycling', path: '/map', icon: <Map className="h-4 w-4 mr-2" /> },
+    { name: 'Classify', path: '/waste-classifier', icon: <Camera className="h-4 w-4 mr-2" /> },
+    { name: 'Energy', path: '/energy-tracker', icon: <BarChart3 className="h-4 w-4 mr-2" /> },
+    { name: 'Recycling', path: '/recycling-map', icon: <Map className="h-4 w-4 mr-2" /> },
   ];
 
   useEffect(() => {
@@ -81,11 +81,11 @@ const Navbar = () => {
                     ))}
                     <li>
                       <Link
-                        to="/login"
+                        to="/about"
                         className="flex items-center text-lg py-2 px-4 rounded-md transition-colors text-foreground/70 hover:text-foreground"
                       >
                         <LogIn className="h-4 w-4 mr-2" />
-                        Login
+                        About
                       </Link>
                     </li>
                   </ul>
@@ -115,11 +115,11 @@ const Navbar = () => {
             </ul>
             <div className="h-6 w-px bg-border mx-4" />
             <Link
-              to="/login"
+              to="/about"
               className="flex items-center text-sm py-2 px-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <LogIn className="h-4 w-4 mr-2" />
-              Login
+              About
             </Link>
           </nav>
         )}

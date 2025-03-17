@@ -1,108 +1,81 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Search, CalendarRange, Clock, Phone, ArrowRight, Building, CircleCheck } from 'lucide-react';
+import { MapPin, Search, CalendarRange, Clock, Phone, ArrowRight, Building, CircleCheck, Map, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface RecyclingCenter {
-  id: string;
-  name: string;
-  address: string;
-  distance: number;
-  materials: string[];
-  hours: string;
-  phone: string;
-}
-
-// Mock data for recycling centers
-const MOCK_CENTERS: RecyclingCenter[] = [
-  {
-    id: "rc1",
-    name: "GreenCycle Community Center",
-    address: "123 Recycling Way, Ecoville",
-    distance: 1.2,
-    materials: ["Paper", "Plastic", "Glass", "Metal"],
-    hours: "Mon-Sat: 8AM-6PM, Sun: 10AM-4PM",
-    phone: "(555) 123-4567"
-  },
-  {
-    id: "rc2",
-    name: "EcoWaste Solutions",
-    address: "456 Sustainability Ave, Greentown",
-    distance: 2.7,
-    materials: ["Paper", "Plastic", "Electronics", "Hazardous Waste"],
-    hours: "Mon-Fri: 7AM-7PM, Sat: 9AM-5PM",
-    phone: "(555) 234-5678"
-  },
-  {
-    id: "rc3",
-    name: "Urban Recyclers Co-op",
-    address: "789 Environmental Blvd, Ecoville",
-    distance: 3.5,
-    materials: ["Paper", "Glass", "Metal", "Textiles"],
-    hours: "Mon-Sun: 24 hours (Dropoff)",
-    phone: "(555) 345-6789"
-  },
-  {
-    id: "rc4",
-    name: "Metro Waste Management",
-    address: "101 Reclaim Street, Greentown",
-    distance: 4.8,
-    materials: ["All materials", "Construction Debris", "Large Items"],
-    hours: "Mon-Fri: 8AM-8PM, Sat-Sun: 9AM-6PM",
-    phone: "(555) 456-7890"
-  },
-  {
-    id: "rc5",
-    name: "Neighborhood Recycling Hub",
-    address: "202 Conservation Lane, Ecoville",
-    distance: 5.2,
-    materials: ["Paper", "Plastic", "Glass", "Compost"],
-    hours: "Mon-Sat: 10AM-6PM",
-    phone: "(555) 567-8901"
-  }
-];
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { geocodeLocation, findRecyclingCenters, type RecyclingCenter } from '@/services/RecyclingService';
 
 const RecyclingMap: React.FC = () => {
   const [centers, setCenters] = useState<RecyclingCenter[]>([]);
   const [selectedCenter, setSelectedCenter] = useState<RecyclingCenter | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPickupScheduled, setIsPickupScheduled] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMaterial, setFilterMaterial] = useState<string>('All');
+  const [locationName, setLocationName] = useState<string>('');
+  const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lon: number; displayName: string } | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Simulate API call to get recycling centers
-    const fetchCenters = async () => {
-      setIsLoading(true);
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!locationName.trim()) {
+      toast({
+        title: "Please enter a location",
+        description: "Enter a city or place name to find recycling centers",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    setGeocodedLocation(null);
+    setCenters([]);
+    
+    try {
+      // Step 1: Convert location name to coordinates
+      const location = await geocodeLocation(locationName);
       
-      try {
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        setCenters(MOCK_CENTERS);
-      } catch (error) {
+      if (!location) {
         toast({
-          title: "Failed to load recycling centers",
-          description: "There was an error loading the recycling centers data",
+          title: "Location not found",
+          description: "We couldn't find that location. Please try a different search term.",
           variant: "destructive"
         });
-      } finally {
         setIsLoading(false);
+        return;
       }
-    };
-    
-    fetchCenters();
-  }, [toast]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real app, this would trigger a search with the query
-    toast({
-      title: "Location search",
-      description: `Searching for recycling centers near "${searchQuery}"`,
-    });
+      
+      setGeocodedLocation(location);
+      
+      // Step 2: Find recycling centers near these coordinates
+      const recyclingCenters = await findRecyclingCenters(location.lat, location.lon);
+      
+      if (recyclingCenters.length === 0) {
+        toast({
+          title: "No recycling centers found",
+          description: `We couldn't find any recycling centers near ${location.displayName}`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Recycling centers found",
+          description: `Found ${recyclingCenters.length} recycling centers near ${location.displayName}`,
+        });
+        setCenters(recyclingCenters);
+      }
+    } catch (error) {
+      console.error("Error searching for recycling centers:", error);
+      toast({
+        title: "Search failed",
+        description: "There was an error searching for recycling centers. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSchedulePickup = () => {
@@ -117,17 +90,24 @@ const RecyclingMap: React.FC = () => {
     });
   };
 
+  const handleViewOnMap = (center: RecyclingCenter) => {
+    const mapUrl = `https://www.openstreetmap.org/?mlat=${center.lat}&mlon=${center.lon}#map=17/${center.lat}/${center.lon}`;
+    window.open(mapUrl, '_blank');
+  };
+
   const filteredCenters = centers.filter(center => {
     // Filter by search query (if any)
     const matchesSearch = 
       searchQuery === '' || 
       center.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      center.address.toLowerCase().includes(searchQuery.toLowerCase());
+      (center.address && center.address.toLowerCase().includes(searchQuery.toLowerCase()));
     
     // Filter by material (if not "All")
     const matchesMaterial = 
       filterMaterial === 'All' || 
-      center.materials.includes(filterMaterial);
+      (center.materials && center.materials.some(m => 
+        m.toLowerCase().includes(filterMaterial.toLowerCase())
+      ));
     
     return matchesSearch && matchesMaterial;
   });
@@ -149,43 +129,66 @@ const RecyclingMap: React.FC = () => {
           <div className="glass-panel rounded-xl p-6">
             <form onSubmit={handleSearch} className="mb-6">
               <label htmlFor="location-search" className="block text-sm font-medium mb-2">Find Centers Near You</label>
-              <div className="relative">
-                <input
-                  id="location-search"
-                  type="text"
-                  placeholder="Enter location or zip code"
-                  className="w-full px-4 py-2 pr-10 rounded-lg border bg-card text-card-foreground"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <button 
+              <div className="space-y-4">
+                <div className="relative">
+                  <Input
+                    id="location-search"
+                    type="text"
+                    placeholder="Enter city or place name"
+                    value={locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    className="w-full pr-10"
+                  />
+                </div>
+                
+                <Button 
                   type="submit"
-                  className="absolute right-0 top-0 h-full px-3 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  className="w-full"
+                  disabled={isLoading}
                 >
-                  <Search className="h-4 w-4" />
-                </button>
+                  {isLoading ? (
+                    <>
+                      <span className="mr-2">Searching</span>
+                      <div className="h-4 w-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      <span>Find Recycling Centers</span>
+                    </>
+                  )}
+                </Button>
               </div>
             </form>
             
-            <div className="mb-6">
-              <label htmlFor="material-filter" className="block text-sm font-medium mb-2">Filter by Material</label>
-              <select
-                id="material-filter"
-                className="w-full px-4 py-2 rounded-lg border bg-card text-card-foreground"
-                value={filterMaterial}
-                onChange={(e) => setFilterMaterial(e.target.value)}
+            {geocodedLocation && (
+              <motion.div 
+                className="mb-6 p-3 bg-muted rounded-lg text-sm"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                transition={{ duration: 0.3 }}
               >
-                <option value="All">All Materials</option>
-                <option value="Paper">Paper</option>
-                <option value="Plastic">Plastic</option>
-                <option value="Glass">Glass</option>
-                <option value="Metal">Metal</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Hazardous Waste">Hazardous Waste</option>
-                <option value="Textiles">Textiles</option>
-                <option value="Compost">Compost</option>
-              </select>
-            </div>
+                <p className="font-medium mb-1">Search Location:</p>
+                <p className="text-muted-foreground">{geocodedLocation.displayName}</p>
+              </motion.div>
+            )}
+            
+            {centers.length > 0 && (
+              <div className="mb-6">
+                <label htmlFor="center-search" className="block text-sm font-medium mb-2">Filter Results</label>
+                <div className="relative">
+                  <Input
+                    id="center-search"
+                    type="text"
+                    placeholder="Search by name or address"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pr-10"
+                  />
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+            )}
             
             <div className="text-sm text-muted-foreground">
               <h4 className="font-medium text-foreground mb-2">Tips for Recycling:</h4>
@@ -270,13 +273,13 @@ const RecyclingMap: React.FC = () => {
                     </div>
                   </div>
                   
-                  <button
+                  <Button
                     onClick={handleSchedulePickup}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary rounded-lg text-primary-foreground hover:bg-primary/90 transition-colors"
+                    className="w-full flex items-center justify-center gap-2"
                   >
                     <span>Schedule Pickup</span>
                     <ArrowRight className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </>
               )}
             </motion.div>
@@ -299,12 +302,20 @@ const RecyclingMap: React.FC = () => {
                   <p className="text-muted-foreground">Searching for recycling centers...</p>
                 </div>
               </div>
-            ) : filteredCenters.length === 0 ? (
+            ) : geocodedLocation && filteredCenters.length === 0 ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="text-center">
                   <MapPin className="h-12 w-12 text-muted-foreground opacity-30 mx-auto mb-4" />
                   <h4 className="text-lg font-medium mb-2">No centers found</h4>
-                  <p className="text-muted-foreground">Try adjusting your search or filters</p>
+                  <p className="text-muted-foreground">Try searching for a different location or adjusting your filters</p>
+                </div>
+              </div>
+            ) : !geocodedLocation ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-center max-w-sm">
+                  <Map className="h-12 w-12 text-muted-foreground opacity-30 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium mb-2">Find Recycling Centers</h4>
+                  <p className="text-muted-foreground">Enter a city or place name to search for nearby recycling centers</p>
                 </div>
               </div>
             ) : (
@@ -320,46 +331,71 @@ const RecyclingMap: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.05 }}
                   >
-                    <div className="flex items-start">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent text-accent-foreground mr-3 mt-1">
-                        <Building className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-medium">{center.name}</h4>
-                            <p className="text-sm text-muted-foreground">{center.address}</p>
-                          </div>
-                          <span className="text-sm font-medium text-primary ml-2 whitespace-nowrap">
-                            {center.distance} mi
-                          </span>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start flex-1">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent text-accent-foreground mr-3 mt-1 shrink-0">
+                          <Building className="h-5 w-5" />
                         </div>
-                        
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {center.materials.slice(0, 3).map((material, i) => (
-                            <span 
-                              key={i} 
-                              className="text-xs px-2 py-0.5 rounded-full bg-muted"
-                            >
-                              {material}
-                            </span>
-                          ))}
-                          {center.materials.length > 3 && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
-                              +{center.materials.length - 3} more
-                            </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="min-w-0">
+                              <h4 className="font-medium truncate">{center.name}</h4>
+                              <p className="text-sm text-muted-foreground truncate">{center.address}</p>
+                            </div>
+                          </div>
+                          
+                          {center.materials && center.materials.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {center.materials.slice(0, 3).map((material, i) => (
+                                <span 
+                                  key={i} 
+                                  className="text-xs px-2 py-0.5 rounded-full bg-muted"
+                                >
+                                  {material}
+                                </span>
+                              ))}
+                              {center.materials.length > 3 && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
+                                  +{center.materials.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {center.hours && (
+                            <div className="mt-3 flex items-center text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 mr-1 shrink-0" />
+                              <span className="truncate">{center.hours}</span>
+                            </div>
+                          )}
+                          
+                          {center.phone && (
+                            <div className="mt-1 flex items-center text-xs text-muted-foreground">
+                              <Phone className="h-3 w-3 mr-1 shrink-0" />
+                              <span>{center.phone}</span>
+                            </div>
                           )}
                         </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-end ml-3 shrink-0">
+                        <span className="text-sm font-medium text-primary whitespace-nowrap mb-2">
+                          {center.distance} km
+                        </span>
                         
-                        <div className="mt-3 flex items-center text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3 mr-1" />
-                          <span className="truncate">{center.hours}</span>
-                        </div>
-                        
-                        <div className="mt-1 flex items-center text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3 mr-1" />
-                          <span>{center.phone}</span>
-                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="gap-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewOnMap(center);
+                          }}
+                        >
+                          <Map className="h-3 w-3" />
+                          <span>View on Map</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   </motion.div>
