@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
@@ -25,7 +26,7 @@ const RecyclingMap: React.FC = () => {
   const [filterMaterial, setFilterMaterial] = useState<string>('All');
   const [locationName, setLocationName] = useState<string>(state?.searchLocation || '');
   const [wasteType, setWasteType] = useState<string>(state?.wasteType || '');
-  const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lon: number; displayName: string } | null>(null);
+  const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lon: number; displayName: string; boundingBox?: [string, string, string, string] } | null>(null);
   const { toast } = useToast();
 
   // Auto-search if location and waste type are provided via state
@@ -54,7 +55,7 @@ const RecyclingMap: React.FC = () => {
     setCenters([]);
     
     try {
-      // Step 1: Convert location name to coordinates
+      // Step 1: Convert location name to coordinates and get bounding box for region
       const location = await geocodeLocation(locationName);
       
       if (!location) {
@@ -74,26 +75,37 @@ const RecyclingMap: React.FC = () => {
       let recyclingCenters;
       
       if (wasteType) {
-        recyclingCenters = await findRecyclingCentersByMaterial(location.lat, location.lon, wasteType);
+        recyclingCenters = await findRecyclingCentersByMaterial(
+          location.lat, 
+          location.lon, 
+          wasteType, 
+          10000, // Default radius
+          location.boundingBox as [string, string, string, string]
+        );
         setFilterMaterial(wasteType);
       } else {
-        recyclingCenters = await findRecyclingCenters(location.lat, location.lon);
+        recyclingCenters = await findRecyclingCenters(
+          location.lat, 
+          location.lon, 
+          10000, // Default radius
+          location.boundingBox as [string, string, string, string]
+        );
       }
       
       if (recyclingCenters.length === 0) {
         toast({
           title: "No recycling centers found",
           description: wasteType 
-            ? `We couldn't find any recycling centers near ${location.displayName} that accept ${wasteType}`
-            : `We couldn't find any recycling centers near ${location.displayName}`,
+            ? `We couldn't find any recycling centers in ${location.displayName} that accept ${wasteType}`
+            : `We couldn't find any recycling centers in ${location.displayName}`,
           variant: "destructive"
         });
       } else {
         toast({
           title: "Recycling centers found",
           description: wasteType
-            ? `Found ${recyclingCenters.length} recycling centers near ${location.displayName} that may accept ${wasteType}`
-            : `Found ${recyclingCenters.length} recycling centers near ${location.displayName}`,
+            ? `Found ${recyclingCenters.length} recycling centers in ${location.displayName} that may accept ${wasteType}`
+            : `Found ${recyclingCenters.length} recycling centers in ${location.displayName}`,
         });
         setCenters(recyclingCenters);
       }
@@ -148,7 +160,7 @@ const RecyclingMap: React.FC = () => {
       <div className="mb-8 text-center">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">Recycling Centers</h2>
         <p className="text-muted-foreground">
-          {wasteType ? `Find nearby recycling centers accepting ${wasteType} waste` : 'Find nearby recycling centers and schedule pickups for your recyclables'}
+          {wasteType ? `Find recycling centers in ${locationName || 'your region'} accepting ${wasteType} waste` : 'Find recycling centers in your region and schedule pickups for your recyclables'}
         </p>
       </div>
       

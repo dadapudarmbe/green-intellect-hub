@@ -8,6 +8,7 @@ export interface GeocodedLocation {
   lat: number;
   lon: number;
   displayName: string;
+  boundingBox?: [string, string, string, string];
 }
 
 // Interface for recycling center results
@@ -25,6 +26,7 @@ export interface RecyclingCenter {
 
 /**
  * Convert a location name to latitude and longitude using Nominatim API
+ * Returns bounding box information for broader region searches
  */
 export const geocodeLocation = async (locationName: string): Promise<GeocodedLocation | null> => {
   try {
@@ -42,10 +44,12 @@ export const geocodeLocation = async (locationName: string): Promise<GeocodedLoc
     const data = await response.json();
     
     if (data && data.length > 0) {
+      const boundingBox = data[0].boundingbox as string[];
       return {
         lat: parseFloat(data[0].lat),
         lon: parseFloat(data[0].lon),
         displayName: data[0].display_name,
+        boundingBox: boundingBox || undefined,
       };
     }
     
@@ -58,21 +62,47 @@ export const geocodeLocation = async (locationName: string): Promise<GeocodedLoc
 
 /**
  * Find recycling centers using Overpass API (OpenStreetMap)
+ * Uses a broader search radius or bounding box for more comprehensive results
  */
-export const findRecyclingCenters = async (lat: number, lon: number, radius: number = 10000): Promise<RecyclingCenter[]> => {
+export const findRecyclingCenters = async (
+  lat: number, 
+  lon: number, 
+  radius: number = 10000,
+  boundingBox?: [string, string, string, string]
+): Promise<RecyclingCenter[]> => {
   try {
-    // Overpass query to find recycling centers, facilities, and containers
-    const overpassQuery = `
-      [out:json];
-      (
-        node["amenity"="recycling"](around:${radius},${lat},${lon});
-        way["amenity"="recycling"](around:${radius},${lat},${lon});
-        relation["amenity"="recycling"](around:${radius},${lat},${lon});
-      );
-      out body;
-      >;
-      out skel qt;
-    `;
+    // Create an Overpass query based on bounding box if available, otherwise use radius
+    let overpassQuery;
+    
+    if (boundingBox) {
+      // Use the bounding box for a broader search of the entire region
+      const [south, north, west, east] = boundingBox;
+      overpassQuery = `
+        [out:json];
+        (
+          node["amenity"="recycling"](${south},${west},${north},${east});
+          way["amenity"="recycling"](${south},${west},${north},${east});
+          relation["amenity"="recycling"](${south},${west},${north},${east});
+        );
+        out body;
+        >;
+        out skel qt;
+      `;
+    } else {
+      // Fallback to radius-based search with larger radius
+      const searchRadius = radius * 2; // Double the radius for broader coverage
+      overpassQuery = `
+        [out:json];
+        (
+          node["amenity"="recycling"](around:${searchRadius},${lat},${lon});
+          way["amenity"="recycling"](around:${searchRadius},${lat},${lon});
+          relation["amenity"="recycling"](around:${searchRadius},${lat},${lon});
+        );
+        out body;
+        >;
+        out skel qt;
+      `;
+    }
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -128,7 +158,7 @@ export const findRecyclingCenters = async (lat: number, lon: number, radius: num
           };
         })
         .sort((a: RecyclingCenter, b: RecyclingCenter) => a.distance - b.distance)
-        .slice(0, 15); // Limit to 15 results
+        .slice(0, 30); // Increased limit to 30 results for broader coverage
     }
     
     return [];
@@ -140,19 +170,21 @@ export const findRecyclingCenters = async (lat: number, lon: number, radius: num
 
 /**
  * Find recycling centers that accept a specific material
+ * Uses broader region search with bounding box when available
  */
 export const findRecyclingCentersByMaterial = async (
   lat: number, 
   lon: number, 
   materialType: string, 
-  radius: number = 10000
+  radius: number = 10000,
+  boundingBox?: [string, string, string, string]
 ): Promise<RecyclingCenter[]> => {
   try {
     // First, normalize the material type to match OSM tags
     const normalizedMaterial = normalizeMaterialType(materialType);
     
-    // Get all recycling centers
-    const allCenters = await findRecyclingCenters(lat, lon, radius);
+    // Get all recycling centers with broader region search
+    const allCenters = await findRecyclingCenters(lat, lon, radius, boundingBox);
     
     // Filter centers that accept the specified material
     if (normalizedMaterial === 'any') {
