@@ -138,6 +138,43 @@ export const findRecyclingCenters = async (lat: number, lon: number, radius: num
   }
 };
 
+/**
+ * Find recycling centers that accept a specific material
+ */
+export const findRecyclingCentersByMaterial = async (
+  lat: number, 
+  lon: number, 
+  materialType: string, 
+  radius: number = 10000
+): Promise<RecyclingCenter[]> => {
+  try {
+    // First, normalize the material type to match OSM tags
+    const normalizedMaterial = normalizeMaterialType(materialType);
+    
+    // Get all recycling centers
+    const allCenters = await findRecyclingCenters(lat, lon, radius);
+    
+    // Filter centers that accept the specified material
+    if (normalizedMaterial === 'any') {
+      return allCenters;
+    }
+    
+    return allCenters.filter(center => {
+      if (!center.materials || center.materials.length === 0) {
+        // If no materials are specified, assume it accepts common materials
+        return true;
+      }
+      
+      return center.materials.some(material => 
+        material.toLowerCase().includes(normalizedMaterial.toLowerCase())
+      );
+    });
+  } catch (error) {
+    console.error(`Error finding recycling centers for ${materialType}:`, error);
+    throw new Error(`Failed to find recycling centers for ${materialType}`);
+  }
+};
+
 // Calculate distance between two points using Haversine formula
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth's radius in km
@@ -160,4 +197,24 @@ function formatMaterialName(material: string): string {
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+// Normalize waste category to OSM recycling tag
+function normalizeMaterialType(category: string): string {
+  // Convert waste category to OSM recycling tag
+  const mappings: Record<string, string> = {
+    'Plastic': 'plastic',
+    'Paper': 'paper',
+    'Glass': 'glass',
+    'Cardboard': 'cardboard',
+    'Metal': 'scrap_metal',
+    'Organic': 'organic',
+    'Battery': 'batteries',
+    'Electronics': 'electronic',
+    'Textile': 'clothes',
+    'Wood': 'wood',
+    // Add more mappings as needed
+  };
+  
+  return mappings[category] || category.toLowerCase();
 }

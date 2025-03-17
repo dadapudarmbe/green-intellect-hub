@@ -1,22 +1,40 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import { MapPin, Search, CalendarRange, Clock, Phone, ArrowRight, Building, CircleCheck, Map, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { geocodeLocation, findRecyclingCenters, type RecyclingCenter } from '@/services/RecyclingService';
+import { Label } from "@/components/ui/label";
+import { geocodeLocation, findRecyclingCenters, findRecyclingCentersByMaterial, type RecyclingCenter } from '@/services/RecyclingService';
+
+interface LocationState {
+  searchLocation?: string;
+  wasteType?: string;
+}
 
 const RecyclingMap: React.FC = () => {
+  const location = useLocation();
+  const state = location.state as LocationState;
+  
   const [centers, setCenters] = useState<RecyclingCenter[]>([]);
   const [selectedCenter, setSelectedCenter] = useState<RecyclingCenter | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPickupScheduled, setIsPickupScheduled] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMaterial, setFilterMaterial] = useState<string>('All');
-  const [locationName, setLocationName] = useState<string>('');
+  const [locationName, setLocationName] = useState<string>(state?.searchLocation || '');
+  const [wasteType, setWasteType] = useState<string>(state?.wasteType || '');
   const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lon: number; displayName: string } | null>(null);
   const { toast } = useToast();
+
+  // Auto-search if location and waste type are provided via state
+  useEffect(() => {
+    if (state?.searchLocation) {
+      handleSearch(new Event('submit') as React.FormEvent);
+    }
+  }, [state?.searchLocation]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,18 +69,30 @@ const RecyclingMap: React.FC = () => {
       setGeocodedLocation(location);
       
       // Step 2: Find recycling centers near these coordinates
-      const recyclingCenters = await findRecyclingCenters(location.lat, location.lon);
+      // If waste type is provided, filter centers that accept this type
+      let recyclingCenters;
+      
+      if (wasteType) {
+        recyclingCenters = await findRecyclingCentersByMaterial(location.lat, location.lon, wasteType);
+        setFilterMaterial(wasteType);
+      } else {
+        recyclingCenters = await findRecyclingCenters(location.lat, location.lon);
+      }
       
       if (recyclingCenters.length === 0) {
         toast({
           title: "No recycling centers found",
-          description: `We couldn't find any recycling centers near ${location.displayName}`,
+          description: wasteType 
+            ? `We couldn't find any recycling centers near ${location.displayName} that accept ${wasteType}`
+            : `We couldn't find any recycling centers near ${location.displayName}`,
           variant: "destructive"
         });
       } else {
         toast({
           title: "Recycling centers found",
-          description: `Found ${recyclingCenters.length} recycling centers near ${location.displayName}`,
+          description: wasteType
+            ? `Found ${recyclingCenters.length} recycling centers near ${location.displayName} that may accept ${wasteType}`
+            : `Found ${recyclingCenters.length} recycling centers near ${location.displayName}`,
         });
         setCenters(recyclingCenters);
       }
@@ -116,7 +146,9 @@ const RecyclingMap: React.FC = () => {
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8 text-center">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">Recycling Centers</h2>
-        <p className="text-muted-foreground">Find nearby recycling centers and schedule pickups for your recyclables</p>
+        <p className="text-muted-foreground">
+          {wasteType ? `Find nearby recycling centers accepting ${wasteType} waste` : 'Find nearby recycling centers and schedule pickups for your recyclables'}
+        </p>
       </div>
       
       <motion.div 
@@ -128,7 +160,7 @@ const RecyclingMap: React.FC = () => {
         <div className="md:col-span-1 space-y-6">
           <div className="glass-panel rounded-xl p-6">
             <form onSubmit={handleSearch} className="mb-6">
-              <label htmlFor="location-search" className="block text-sm font-medium mb-2">Find Centers Near You</label>
+              <Label htmlFor="location-search" className="block text-sm font-medium mb-2">Find Centers Near You</Label>
               <div className="space-y-4">
                 <div className="relative">
                   <Input
@@ -140,6 +172,15 @@ const RecyclingMap: React.FC = () => {
                     className="w-full pr-10"
                   />
                 </div>
+                
+                {wasteType && (
+                  <div className="mb-4">
+                    <Label htmlFor="waste-type" className="block text-sm font-medium mb-2">Material Type</Label>
+                    <div className="px-3 py-2 bg-primary/10 rounded-lg text-sm font-medium">
+                      {wasteType}
+                    </div>
+                  </div>
+                )}
                 
                 <Button 
                   type="submit"
@@ -349,7 +390,11 @@ const RecyclingMap: React.FC = () => {
                               {center.materials.slice(0, 3).map((material, i) => (
                                 <span 
                                   key={i} 
-                                  className="text-xs px-2 py-0.5 rounded-full bg-muted"
+                                  className={`text-xs px-2 py-0.5 rounded-full ${
+                                    wasteType && material.toLowerCase().includes(wasteType.toLowerCase())
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                      : 'bg-muted'
+                                  }`}
                                 >
                                   {material}
                                 </span>

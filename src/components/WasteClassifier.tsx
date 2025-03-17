@@ -1,10 +1,13 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Camera, Upload, RefreshCcw, Loader2, CheckCircle2, Trash2, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import MainLayout from '@/layout/MainLayout';
 import CameraFeed from './CameraFeed';
+import { geocodeLocation } from '@/services/RecyclingService';
 
 interface ClassificationResult {
   category: string;
@@ -56,8 +59,53 @@ const WasteClassifier: React.FC = () => {
   const [isClassifying, setIsClassifying] = useState<boolean>(false);
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [cameraActive, setCameraActive] = useState<boolean>(false);
+  const [userLocation, setUserLocation] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Try to get user's location when component mounts
+  useEffect(() => {
+    // Check if Geolocation is supported
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            // Attempt reverse geocoding to get a place name from coordinates
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${position.coords.latitude}&lon=${position.coords.longitude}&format=json`,
+              {
+                headers: {
+                  'Accept-Language': 'en-US,en;q=0.9',
+                  'User-Agent': 'EcoSmartHub/1.0',
+                }
+              }
+            );
+            const data = await response.json();
+            
+            if (data && data.address) {
+              // Use the most specific location info available
+              const city = data.address.city || data.address.town || data.address.village;
+              const region = data.address.state || data.address.county;
+              
+              if (city && region) {
+                setUserLocation(`${city}, ${region}`);
+              } else if (city) {
+                setUserLocation(city);
+              } else if (region) {
+                setUserLocation(region);
+              }
+            }
+          } catch (error) {
+            console.error('Error during reverse geocoding:', error);
+          }
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
+    }
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,6 +183,38 @@ const WasteClassifier: React.FC = () => {
     setResult(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFindRecyclingCenters = async () => {
+    if (!result) return;
+    
+    // First, check if we have a user location
+    const searchLocation = userLocation || prompt("Please enter your city or location to find nearby recycling centers:");
+    
+    if (!searchLocation) {
+      toast({
+        title: "Location required",
+        description: "Please provide a location to find recycling centers",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // Navigate to recycling map page with the waste type and location as state
+      navigate('/recycling-map', { 
+        state: { 
+          searchLocation,
+          wasteType: result.category
+        }
+      });
+    } catch (error) {
+      toast({
+        title: "Navigation error",
+        description: "Unable to open recycling centers map. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -406,6 +486,7 @@ const WasteClassifier: React.FC = () => {
                             </motion.div>
                             
                             <motion.button
+                              onClick={handleFindRecyclingCenters}
                               className="mt-6 flex items-center justify-center gap-2 px-4 py-2 bg-secondary rounded-lg text-secondary-foreground hover:bg-secondary/90 transition-colors text-sm"
                               whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
                               whileTap={{ scale: 0.95 }}
