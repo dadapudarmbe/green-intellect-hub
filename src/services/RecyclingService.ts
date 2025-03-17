@@ -44,12 +44,25 @@ export const geocodeLocation = async (locationName: string): Promise<GeocodedLoc
     const data = await response.json();
     
     if (data && data.length > 0) {
-      const boundingBox = data[0].boundingbox as string[];
+      const boundingBoxArray = data[0].boundingbox as string[];
+      
+      // Ensure we have exactly 4 elements for the bounding box
+      let boundingBox: [string, string, string, string] | undefined;
+      
+      if (boundingBoxArray && boundingBoxArray.length >= 4) {
+        boundingBox = [
+          boundingBoxArray[0],
+          boundingBoxArray[1],
+          boundingBoxArray[2],
+          boundingBoxArray[3]
+        ];
+      }
+      
       return {
         lat: parseFloat(data[0].lat),
         lon: parseFloat(data[0].lon),
         displayName: data[0].display_name,
-        boundingBox: boundingBox || undefined,
+        boundingBox: boundingBox,
       };
     }
     
