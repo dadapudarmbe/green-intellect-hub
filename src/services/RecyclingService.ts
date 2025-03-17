@@ -1,4 +1,3 @@
-
 /**
  * Service for handling recycling location searches using OpenStreetMap APIs
  */
